@@ -72,55 +72,52 @@ function choose_device()
 
 function generate_musics()
 {
-	INDEX_ACTUAL=0 
 	SIZE_FREE_ACTUAL="$DEVICE_SIZE"
-	
-	#FIND MUSICS IN THE DIRECTORY
-	while IFS= read -r line; do
-		MUSICS+=( "$line" )
-	done < <( find . -type f -iname "*.mp3"  -exec ls -l --escape {}  \; | awk '{$1=$2=$3=$4=$6=$7=$8=""; print $0}' ) 
-	#SET THE CURRENT MUSIC SIZE
-	NUM_MUSICS="${#MUSICS[@]}"
-
-	# TEST IF NUMBER OF MUSICS IS NOT ZERO
-	if [[ "$NUM_MUSICS" -eq 0 ]]; then 
+    NUM_MUSICS=`find . -type f -iname "*.mp3" | wc -l` 
+    if [[ "$NUM_MUSICS" -eq 0 ]]; then 
 		echo "NO MUSIC FOUND IN THE DIRECTORY OF SEARCH"
 		exit 5
-	else 		
-		end=1
-		teste_size=0
-		while (( end == 1 && NUM_MUSICS > 0 )) 
-		do 
-			#NEW RANDOM INDEX
-			INDEX_ACTUAL=$(($RANDOM % $NUM_MUSICS));
+    else
+        rm music_names  music_sizes  music_outputs 2> /dev/null
+        
+        touch music_names music_sizes music_outputs
+        ## find . -type f -iname "*.mp3" -print0 | while IFS= read -r -d '' filename; do
+        ##...
+        ## done
+        ## find . -type f -iname "*.mp3" -print0 -exec bash -c 'printf "%q\n" "$@"' sh {} +
+        ##                                                                               \;
 
-			#GET THE SIZE(IN BYTES) OF THE RANDOM MUSIC SELECTED
-			MS=`echo "${MUSICS[$INDEX_ACTUAL]}" | awk '{print $1}'`
+        find . -type f -iname "*.mp3" -print0 -exec bash -c 'printf "%q\n" "$@"' sh {} + >> music_names
+    #   cat music_names | xargs -0 -I {} wc -c {} 2> /dev/null | awk '{print $1}' >>  music_sizes
+        cat music_names | xargs -0 -I {} wc -c {} | awk '{print $1}' >>  music_sizes
 
-			#VERIFY IF THE DEVICE FREE SIZE CAN ADD THE RANDOM MUSIC SELECTED
-			if [[ "$SIZE_FREE_ACTUAL" -gt "$MS" ]]; then
+        RANDOM_INDEXES=( $( seq 1 $NUM_MUSICS | shuf - ) )
 
-				#AFTER VERIFICATION, ADD MUSICS[?] TO MUSICS_OUT
-				MUSICS_OUT+=( "${MUSICS[$INDEX_ACTUAL]}" )
+    #loop start
+        for index in "${RANDOM_INDEXES[@]}"; do 
+            music_size_bytes=`sed -n "$index"p music_sizes`
+            if [[ "$SIZE_FREE_ACTUAL" -gt "$music_size_bytes" ]] ; then 
+                #UPDATE FREE SIZE
+                SIZE_FREE_ACTUAL="$(( $SIZE_FREE_ACTUAL - $music_size_bytes ))"
+                echo "DEVICE SIZE: $SIZE_FREE_ACTUAL"
+                #COPY MUSIC NAME TO OUTPUT FILE
+                sed -n "${index}p" music_names >> music_outputs  
+            else
+                #UPDATE THE NUMBER OF CHANCES TO FIT THE MUSIC IN THE OUTPUT
+                MAX_FIT_TRY="$(($MAX_FIT_TRY-1))"
+                if [[ "$MAX_FIT_TRY" -eq 0 ]]; then 
+                    break;
+                fi
+            fi           
+        done
+       rm music_names music_sizes 
+       wc -l music_outputs
+    fi
+    #sed -n 2199p music_* ## pega o que estiver na linha 2199 (contando a partir de 1) do arquivo music_*
 
-				#UPDATE DEVICE_SIZE
-				SIZE_FREE_ACTUAL="$(($SIZE_FREE_ACTUAL-$MS))"
-				echo "DEVICE_SIZE: $SIZE_FREE_ACTUAL"
-			else
-				#UPDATE THE MAXIMUM CHANCES OF FITTING MUSIC IN THE OUTPUT
-				MAX_FIT_TRY="$(($MAX_FIT_TRY-1))"
-				if [[ "$MAX_FIT_TRY" -eq 0 ]]; then
-					end=0
-				fi	
-			fi
-			#REMOVE MUSICS[?] FROM MUSICS
-			remove_music "$INDEX_ACTUAL"
-			echo "MUSICS AFTER REMOVE ${#MUSICS[@]} ; MUSICS_OUT ${#MUSICS_OUT[@]}"
-			#UPDATE NUM_MUSICS
-			NUM_MUSICS="${#MUSICS[@]}"
-		done
-	fi
+
 }
+
 
 function remove_music()
 {
@@ -263,21 +260,14 @@ function fill_folder()
 	mkdir -p ./MUSICS_OUT
 	
 	#FILL FOLDER WITH COPYS OF THE MUSICS 
-	for sm in "${MUSICS_OUT[@]}"; do 
-		#a=
-		echo $sm | awk '{$1=""; print $0}' | xargs -I {} cp {} ./MUSICS_OUT/	
-	#	cp "${a@Q}" ./MUSICS_OUT/
-		#echo "$a"
-
-	done
+	#for sm in "${MUSICS_OUT[@]}"; do 
+		cat music_outputs | xargs  -I  {} cp {} ./MUSICS_OUT/	
+	#done
 
 #	while IFS= read -r line; do
 #		m=`echo "$line" | awk '{$1=""; print $0}'` 
  #       	cp "\"$m\"" ./MUSICS_OUT/
   #      done < <( $MUSICS_OUT[@] ) 
-
-
-
 }
 
 function main()
@@ -330,6 +320,4 @@ main
 #	INDEX_ACTUAL=$(($RANDOM % $NUM_MUSICS));	
 #	echo 'entrou '."$INDEX_ACTUAL";
 #done
-
-		
-
+#
