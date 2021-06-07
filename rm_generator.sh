@@ -114,8 +114,6 @@ function generate_musics()
        wc -l music_outputs
     fi
     #sed -n 2199p music_* ## pega o que estiver na linha 2199 (contando a partir de 1) do arquivo music_*
-
-
 }
 
 
@@ -290,7 +288,7 @@ function main()
 	#	create_or_read_logs # fills LOGS and sets LOGS_DIR
 		
 		# DEVICE_SIZE=8036290560
-		DEVICE_SIZE=1900000000
+    	DEVICE_SIZE=1900000000
 
 		generate_musics  # (DEVICE_SIZE,LOGS)  reads LOGS fills: MUSICS, LOGS	#	output_into_dir(MUSICS) # optional: put the musics generated in a directory
 		fill_folder
@@ -300,24 +298,26 @@ function main()
 #	fi
 }
 
-main 
+#main 
 
-#while [[ $i -lt ${#MUSICS[@]} ]]
-#do
-#	echo "$i""${MUSICS[$i]}" ;
-#	i=$(($i + 1));
-#done
+################################# PARSE ARGUMENTS #################################  
 
-#for line in "$MUSICS";
-#do
-#    if [ $line  $INDEX_ATUAL ]
-#    then
-#		echo "$line";
-#	fi
+LOG_OPT="" # FULL: try to read logs from ./LOGS/, and does not use musics that already have hashes in there; 
+           #       logs md5sum of musics resulting from the draw.
+           # 
+           # LOGONLY: logs md5sum of musics resulting from the draw.
+           #
+           # READONLY: try to read logs from ./LOGS/, and does not use musics that already have hashes in there; 
 
-#while [[ " ${LIST_INDEXES[@]} " =~ " ${INDEX_ACTUAL} " ]]
-#do
-#	INDEX_ACTUAL=$(($RANDOM % $NUM_MUSICS));	
-#	echo 'entrou '."$INDEX_ACTUAL";
-#done
-#
+for i in "$@"
+do 
+case $i in 
+    --log=*)
+        LOG_OPT="${i#*=}"
+        shift
+        ;;
+
+esac
+done
+
+echo "$LOG_OPT"
