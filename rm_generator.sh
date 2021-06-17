@@ -76,7 +76,7 @@ function generate_musics()
     NUM_MUSICS=`find . -type f -iname "*.mp3" | wc -l` 
     if [[ "$NUM_MUSICS" -eq 0 ]]; then 
 		echo "NO MUSIC FOUND IN THE DIRECTORY OF SEARCH"
-		exit 5
+		exit 2
     else
         rm music_names  music_sizes  music_outputs 2> /dev/null
         
@@ -147,11 +147,11 @@ function clear_device()
 			set_device_size	
 		else
 			echo "device type not compatible"
-			exit 4
+			exit 3
 		fi
 	else 
 		echo format canceled
-		exit 3
+		exit 4
 	fi
 }
 
@@ -192,7 +192,7 @@ function set_device_size()
 	#check if is not a number
 	if [ ! "$DEVICE_SIZE" -eq "$DEVICE_SIZE" ] 2>/dev/null; then
 		echo "could not find device size"
-		exit 4
+		exit 5
 	else
 		echo "device size: $DEVICE_SIZE"	
 	fi			
@@ -274,7 +274,7 @@ function main()
 #	if [  -z "$REGEX_VERIFY_DEVICES" ]
 #	then
 #		echo 'insert device and try again';
-#		exit 1
+#		exit 6
 	
 #	else 
 	#	echo '###################SELECT DEVICE#######################';
@@ -282,7 +282,7 @@ function main()
 	#	set_device_type # set DEVICE_TYPE (Flash Disk); set DEVICE_MOUNTED /dev/sdXN; set DEVICE_DISK /dev/sdX
 	#	if [ -z "$DEVICE_TYPE" ]; then 
 	#		echo 'device type not identified';
-	#		exit 2
+	#		exit 7
 	#	fi
 	#	clear_device # set size and format DEVICE
 	#	create_or_read_logs # fills LOGS and sets LOGS_DIR
@@ -294,30 +294,61 @@ function main()
 		fill_folder
 	#	fill_device()
 		#TODO: UMOUNT DEVICE AND DELETE ITS MOUNTED FOLDER AND EJECT DISK
-		# TODO: exit 0
+		# TODO: exit 8
 #	fi
 }
 
-#main 
 
 ################################# PARSE ARGUMENTS #################################  
+
+declare -a LOG_OPTIONS=("FULL" "LOGONLY" "READONLY" "NONE" "F" "L" "R" "N")
 
 LOG_OPT="" # FULL: try to read logs from ./LOGS/, and does not use musics that already have hashes in there; 
            #       logs md5sum of musics resulting from the draw.
            # 
            # LOGONLY: logs md5sum of musics resulting from the draw.
            #
-           # READONLY: try to read logs from ./LOGS/, and does not use musics that already have hashes in there; 
+           # READONLY: try to read logs from ./LOGS/, and does not use musics that already have hashes in there;
+           #
+           # NONE: neither read logs nor logs musics hashes
 
 for i in "$@"
 do 
-case $i in 
-    --log=*)
-        LOG_OPT="${i#*=}"
-        shift
-        ;;
+    case $i in 
+        --log=*)
+            LOG_OPT="${i#*=}"
+            shift
+            ;;
 
-esac
+    esac
 done
 
-echo "$LOG_OPT"
+
+function test_match_flags()
+{    
+    local flag_value="$1"
+    shift
+
+    local flag_match=0
+    for i in "$@"
+    do 
+        if [ "$i" = "$flag_value" ]; then            
+            flag_match=1
+            break;
+        fi
+    done
+    echo "$flag_match"    
+}
+################################ ESPECIFIC ARGS TEST ##############################
+
+if [[ -n "$LOG_OPT" ]]; then
+    test_log=`test_match_flags "$LOG_OPT" "${LOG_OPTIONS[@]}"`
+    if [ "$test_log" -eq "0" ]; then 
+        echo "error: invalid argument --log=$LOG_OPT"
+        exit 9
+    fi
+fi
+
+
+main
+
