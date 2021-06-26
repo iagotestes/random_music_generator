@@ -30,7 +30,7 @@ LOGS_DIR=""
 NUM_MUSICS=0 
 MUSICS=()
 MUSICS_OUT=()
-
+MUSICS_OUT_FOLDER="./MUSICS_OUT"
 REGEX_VERIFY_DEVICES=""
 ####################################################################################################
 
@@ -79,29 +79,31 @@ function generate_musics()
 		exit 2
     else
         rm music_names  music_sizes  music_outputs 2> /dev/null
-        
         touch music_names music_sizes music_outputs
-        ## find . -type f -iname "*.mp3" -print0 | while IFS= read -r -d '' filename; do
-        ##...
-        ## done
-        ## find . -type f -iname "*.mp3" -print0 -exec bash -c 'printf "%q\n" "$@"' sh {} +
-        ##                                                                               \;
 
-        find . -type f -iname "*.mp3" -print0 -exec bash -c 'printf "%q\n" "$@"' sh {} + >> music_names
+       # find . -type f -iname "*.mp3" ! -path "${MUSICS_OUT_FOLDER}/*" -print0 -exec bash -c 'printf "%q\n" "$@"' sh {} + >> music_names
+        find . -type f -iname "*.mp3" ! -path "${MUSICS_OUT_FOLDER}/*" -exec bash -c 'printf "%q\n" "$@"' sh {} + >> music_names
     #   cat music_names | xargs -0 -I {} wc -c {} 2> /dev/null | awk '{print $1}' >>  music_sizes
-        cat music_names | xargs -0 -I {} wc -c {} | awk '{print $1}' >>  music_sizes
+        cat music_names | xargs  -I {} wc -c {} | awk '{print $1}' >>  music_sizes
 
         RANDOM_INDEXES=( $( seq 1 $NUM_MUSICS | shuf - ) )
 
     #loop start
         for index in "${RANDOM_INDEXES[@]}"; do 
             music_size_bytes=`sed -n "$index"p music_sizes`
+            echo "music size: $music_size_bytes index: $index"
             if [[ "$SIZE_FREE_ACTUAL" -gt "$music_size_bytes" ]] ; then 
-                #UPDATE FREE SIZE
-                SIZE_FREE_ACTUAL="$(( $SIZE_FREE_ACTUAL - $music_size_bytes ))"
-                echo "DEVICE SIZE: $SIZE_FREE_ACTUAL"
-                #COPY MUSIC NAME TO OUTPUT FILE
-                sed -n "${index}p" music_names >> music_outputs  
+                #TEST FOR HASHES IN LOGS_DIR
+                this_hash=`sed -n "${index}p" music_names | xargs -I {}  md5sum {} | awk '{print $1}'`
+                if [[ ! "${LOGS[@]}" =~ "$this_hash" ]]; then 
+                    #UPDATE FREE SIZE
+                    SIZE_FREE_ACTUAL="$(( $SIZE_FREE_ACTUAL - $music_size_bytes ))"
+                    echo "DEVICE SIZE: $SIZE_FREE_ACTUAL"
+                    #COPY MUSIC NAME TO OUTPUT FILE
+                    sed -n "${index}p" music_names >> music_outputs  
+                    #PUT NEW HASH IN LOGS_DIR
+                    echo "$this_hash" >> "$LOGS_DIR"
+                fi
             else
                 #UPDATE THE NUMBER OF CHANCES TO FIT THE MUSIC IN THE OUTPUT
                 MAX_FIT_TRY="$(($MAX_FIT_TRY-1))"
@@ -110,7 +112,7 @@ function generate_musics()
                 fi
             fi           
         done
-       rm music_names music_sizes 
+       #rm music_names music_sizes 
        wc -l music_outputs
     fi
     #sed -n 2199p music_* ## pega o que estiver na linha 2199 (contando a partir de 1) do arquivo music_*
@@ -237,29 +239,27 @@ function create_or_read_logs()
 
 	if [[ ! -d "$DIR_NAME" ]]; then
 		mkdir "$DIR_NAME"
-		echo -n "" > "$LOGS_DIR"
+		touch "$LOGS_DIR"
 	elif [[ ! -f "$LOGS_DIR" ]]; then
-		echo -n "" > "$LOGS_DIR"
+		touch "$LOGS_DIR"
 	else
 		#FILLS LOGS WITH THE ENTRIES OF THE FILE
 		while IFS= read -r line; do
 			LOGS+=( "$line" )
 		done < <( cat "$LOGS_DIR" ) 
 		echo "logs size: ${#LOGS[@]}"
-
 	fi
-		
 }
 
 function fill_folder()
 {
 	#TODO: CLEAN DIRECTORY IF IT IS EXISTS AND HAS MUSICS
 	#CREATE FOLDER
-	mkdir -p ./MUSICS_OUT
+	mkdir -p "$MUSICS_OUT_FOLDER"
 	
 	#FILL FOLDER WITH COPYS OF THE MUSICS 
 	#for sm in "${MUSICS_OUT[@]}"; do 
-		cat music_outputs | xargs  -I  {} cp {} ./MUSICS_OUT/	
+		cat music_outputs | xargs  -I  {} cp {} "${MUSICS_OUT_FOLDER}/"	
 	#done
 
 #	while IFS= read -r line; do
@@ -285,7 +285,7 @@ function main()
 	#		exit 7
 	#	fi
 	#	clear_device # set size and format DEVICE
-	#	create_or_read_logs # fills LOGS and sets LOGS_DIR
+		create_or_read_logs # fills LOGS and sets LOGS_DIR
 		
 		# DEVICE_SIZE=8036290560
     	DEVICE_SIZE=1900000000
@@ -312,6 +312,18 @@ LOG_OPT="" # FULL: try to read logs from ./LOGS/, and does not use musics that a
            #
            # NONE: neither read logs nor logs musics hashes
 
+           # default option is FULL
+
+declare -a MODE_OPTIONS=("SCRIPT" "INTERACTIVE" "S" "I")
+
+MODE_OPT="" # SCRIPT: try to execute in script mode, without prompting options for the user.
+            # 
+            # INTERACTIVE: asks for DEVICE, LOG, FOLDER, SIZE options from the user in a interactive mode 
+            #
+
+            # default is INTERACTIVE
+
+
 for i in "$@"
 do 
     case $i in 
@@ -320,6 +332,10 @@ do
             shift
             ;;
 
+        --mode=*)
+            MODE_OPT="${i#*=}"
+            shift 
+            ;;
     esac
 done
 
@@ -349,6 +365,6 @@ if [[ -n "$LOG_OPT" ]]; then
     fi
 fi
 
-
+################################ MAIN EXECUTION ###################################
 main
 
